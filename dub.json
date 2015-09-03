@@ -1,0 +1,13 @@
+{
+	"name": "carbond",
+	"description": "A simple carbon writer using vibe.d server.",
+	"copyright": "Copyright © 2015, Iain Buclaw",
+	"authors": ["Iain Buclaw"],
+	"dependencies": {
+		"vibe-d": "~>0.7.19",
+	},
+	"subConfigurations": {
+	    "vibe-d": "libasync"
+	},
+	"versions": ["VibeDefaultMain"],
+}
