@@ -77,10 +77,12 @@ struct CeresSlice
   void write(Datapoint datapoint)
   {
     long byteOffset = ((datapoint.timestamp - this.startTime) / this.timeStep) * datapointSize;
-    long filesize;
-    try filesize = this.fsPath.getSize();
-    catch (FileException e)
-      throw new SliceDeleted(e.msg);
+    if (!this.fsPath.exists)
+      throw new SliceDeleted(this.fsPath);
+
+    File fileHandle = File(this.fsPath, "r+b");
+    fileHandle.lock();
+    long filesize = fileHandle.size;
 
     // Pad the allowable gap with nan's
     long byteGap = byteOffset - filesize;
@@ -98,7 +100,6 @@ struct CeresSlice
       }
     }
 
-    File fileHandle = File(this.fsPath, "r+b");
     try fileHandle.seek(byteOffset);
     catch (ErrnoException e)
       throw new Exception("%s: fsPath=%s byteOffset=%s size=%s value=%s"
@@ -110,6 +111,7 @@ struct CeresSlice
     ubyte[datapointSize] packedValue = nativeToBigEndian(datapoint.value);
     fileHandle.rawWrite(packedValue);
 
+    fileHandle.unlock();
     fileHandle.close();
   }
 }
