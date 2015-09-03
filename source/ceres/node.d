@@ -173,6 +173,9 @@ struct CeresNode
 
     bool dataWritten = false;
 
+    // Round it down to a proper interval
+    datapoint.timestamp -= datapoint.timestamp % this.timeStep;
+
     foreach (slice; this.slices)
     {
       if (slice.timeStep != this.timeStep)
