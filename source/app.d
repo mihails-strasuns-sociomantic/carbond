@@ -228,7 +228,14 @@ void metricReceiver(TCPConnection conn)
 
   while (!conn.empty)
   {
-    auto line = cast(string)conn.readLine(size_t.max, "\n");
+    string line;
+
+    try line = cast(string)conn.readLine(size_t.max, "\n");
+    catch (Exception e)
+    {
+      logWarn(e.msg);
+      break;
+    }
     line.formattedRead("%s %s %s", &metric, &value, &timestamp);
 
     debug logInfo("processing metric: %s", metric);
@@ -263,6 +270,7 @@ void metricReceiver(TCPConnection conn)
       continue;
     }
   }
+  conn.close();
 }
 
 shared static this()
