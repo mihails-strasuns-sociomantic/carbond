@@ -76,7 +76,10 @@ struct CeresSlice
   ///     datapoint = A Datapoint entry "(timestamp, value)"
   void write(Datapoint datapoint)
   {
-    long byteOffset = ((datapoint.timestamp - this.startTime) / this.timeStep) * datapointSize;
+    long timeOffset = datapoint.timestamp - this.startTime;
+    long pointOffset = timeOffset / this.timeStep;
+    long byteOffset = pointOffset * datapointSize;
+
     if (!this.fsPath.exists)
       throw new SliceDeleted(this.fsPath);
 
