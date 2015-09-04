@@ -32,7 +32,6 @@ struct CeresNode
   import std.array;
   import std.conv;
   import std.file;
-  import std.math;
   import std.path;
   import std.range;
   import std.string;
@@ -167,9 +166,6 @@ struct CeresNode
   {
     if (this.timeStep == -1)
       this.readMetadata();
-
-    if (isNaN(datapoint.value))
-      return;
 
     bool dataWritten = false;
 

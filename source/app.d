@@ -15,6 +15,7 @@ import core.sys.posix.syslog;
 import std.conv;
 import std.file;
 import std.format;
+import std.math;
 import std.ini;
 import std.path;
 import std.process;
@@ -237,6 +238,13 @@ void metricReceiver(TCPConnection conn)
       break;
     }
     line.formattedRead("%s %s %s", &metric, &value, &timestamp);
+
+    // Drop NaN and Inf data points since they are not supported values.
+    if (isNaN(value) || isInfinity(value))
+    {
+      debug logInfo("dropping unsupported metric: %s", metric);
+      continue;
+    }
 
     debug logInfo("processing metric: %s", metric);
 
