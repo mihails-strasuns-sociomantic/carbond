@@ -10,6 +10,7 @@ import vibe.core.net;
 import vibe.core.stream;
 import vibe.stream.operations;
 
+import core.time;
 import core.stdc.stdlib;
 import core.sys.posix.syslog;
 import std.conv;
@@ -217,7 +218,7 @@ void setupServer(string config_path)
   else
     throw new Error("(" ~ config ~ "): no defined listener interfaces");
 
-  listenTCP(port, (conn) => metricReceiver(conn), address);
+  listenTCP(port, (conn) => metricReceiver(conn), address, TCPListenOptions.disableAutoClose);
 }
 
 /// Our network entry point.
@@ -227,57 +228,61 @@ void metricReceiver(TCPConnection conn)
   double value;
   ulong timestamp;
 
-  while (!conn.empty)
+  while (conn.waitForData(5.seconds))
   {
-    string line;
-
-    try line = cast(string)conn.readLine(size_t.max, "\n");
-    catch (Exception e)
+    while (!conn.empty)
     {
-      logWarn(e.msg);
-      break;
-    }
-    line.formattedRead("%s %s %s", &metric, &value, &timestamp);
+      string line;
 
-    // Drop NaN and Inf data points since they are not supported values.
-    if (isNaN(value) || isInfinity(value))
-    {
-      debug logInfo("dropping unsupported metric: %s", metric);
-      continue;
-    }
-
-    debug logInfo("processing metric: %s", metric);
-
-    if (!database.hasNode(metric))
-    {
-      // Determine metadata from storage rules
-      CeresMetadata metadata;
-      foreach (rule; storage_rules)
+      try line = cast(string)conn.readLine(size_t.max, "\n");
+      catch (Exception e)
       {
-        if (rule.match_all || (!rule.pattern.empty && !matchFirst(metric, rule.pattern).empty))
+        logWarn(e.msg);
+        break;
+      }
+      line.formattedRead("%s %s %s", &metric, &value, &timestamp);
+
+      // Drop NaN and Inf data points since they are not supported values.
+      if (isNaN(value) || isInfinity(value))
+      {
+        debug logInfo("dropping unsupported metric: %s", metric);
+        continue;
+      }
+
+      debug logInfo("processing metric: %s", metric);
+
+      if (!database.hasNode(metric))
+      {
+        // Determine metadata from storage rules
+        CeresMetadata metadata;
+        foreach (rule; storage_rules)
         {
-          metadata["timeStep"] = rule.retentions[0][0];
-          metadata["retentions"] = rule.retentions;
-          metadata["xFilesFactor"] = rule.xfilesfactor;
-          metadata["aggregationMethod"] = rule.aggregation_method;
-          break;
+          if (rule.match_all || (!rule.pattern.empty && !matchFirst(metric, rule.pattern).empty))
+          {
+            metadata["timeStep"] = rule.retentions[0][0];
+            metadata["retentions"] = rule.retentions;
+            metadata["xFilesFactor"] = rule.xfilesfactor;
+            metadata["aggregationMethod"] = rule.aggregation_method;
+            break;
+          }
+        }
+        try database.createNode(metric, metadata);
+        catch (Exception next)
+        {
+          logError("database create operation failed: %s", metric);
+          continue;
         }
       }
-      try database.createNode(metric, metadata);
+
+      try database.store(metric, Datapoint(timestamp, value));
       catch (Exception next)
       {
-        logError("database create operation failed: %s", metric);
+        logError("database write operation failed: %s", metric);
         continue;
       }
     }
-
-    try database.store(metric, Datapoint(timestamp, value));
-    catch (Exception next)
-    {
-      logError("database write operation failed: %s", metric);
-      continue;
-    }
   }
+  logWarn("closing connection stream");
   conn.close();
 }
 
