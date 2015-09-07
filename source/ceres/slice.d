@@ -29,11 +29,11 @@ struct CeresSlice
   import std.bitmanip;
   import std.conv;
   import std.exception;
-  import std.file;
   import std.path;
   import std.range;
-  import std.stdio;
   import std.string;
+
+  import vibe.core.file;
 
   const CeresNode node;
   const long startTime;
@@ -65,9 +65,8 @@ struct CeresSlice
   static CeresSlice create(CeresNode node, long startTime, long timeStep)
   {
     CeresSlice slice = CeresSlice(node, startTime, timeStep);
-    File fileHandle = File(slice.fsPath, "wb");
+    FileStream fileHandle = openFile(slice.fsPath, FileMode.createTrunc);
     fileHandle.close();
-    slice.fsPath.setAttributes(octal!644);
     return slice;
   }
 
@@ -80,11 +79,10 @@ struct CeresSlice
     long pointOffset = timeOffset / this.timeStep;
     long byteOffset = pointOffset * datapointSize;
 
-    if (!this.fsPath.exists)
+    if (!existsFile(this.fsPath))
       throw new SliceDeleted(this.fsPath);
 
-    File fileHandle = File(this.fsPath, "r+b");
-    fileHandle.lock();
+    FileStream fileHandle = openFile(this.fsPath, FileMode.readWrite);
     long filesize = fileHandle.size;
 
     // Pad the allowable gap with nan's
@@ -109,12 +107,10 @@ struct CeresSlice
           .format(e.msg, this.fsPath, byteOffset, filesize, datapoint.value));
 
     if (packedGap.length)
-      fileHandle.rawWrite(packedGap);
+      fileHandle.write(packedGap);
 
     ubyte[datapointSize] packedValue = nativeToBigEndian(datapoint.value);
-    fileHandle.rawWrite(packedValue);
-
-    fileHandle.unlock();
+    fileHandle.write(packedValue);
     fileHandle.close();
   }
 }

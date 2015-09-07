@@ -36,6 +36,8 @@ struct CeresNode
   import std.range;
   import std.string;
 
+  import vibe.core.file;
+
   CeresTree tree;
   string nodePath;
   string fsPath;
@@ -74,7 +76,7 @@ struct CeresNode
   {
     // Create the node directory
     string fsPath = tree.getFilesystemPath(nodePath);
-    if (!fsPath.exists)
+    if (!existsFile(fsPath))
       mkdirRecurse(fsPath);
 
     // Create the initial metadata
@@ -92,8 +94,7 @@ struct CeresNode
   ///     true or false
   static bool isNodeDir(string path)
   {
-    return path.exists && path.isDir
-      && buildPath(path, ".ceres-node").exists;
+    return existsFile(buildPath(path, ".ceres-node"));
   }
 
   /// Update node metadata from disk
@@ -103,7 +104,8 @@ struct CeresNode
   {
     try
     {
-      string data = cast(string) std.file.read(this.metadataFile);
+      ubyte[128] buffer;
+      string data = cast(string) readFile(this.metadataFile, buffer);
       CeresMetadata metadata = jsonLoad(data);
       this.timeStep = metadata["timeStep"].coerce!(long);
       return metadata;
@@ -118,7 +120,7 @@ struct CeresNode
   void writeMetadata(CeresMetadata metadata)
   {
     this.timeStep = metadata["timeStep"].coerce!(long);
-    std.file.write(this.metadataFile, jsonDump(metadata));
+    writeFile(this.metadataFile, cast(ubyte[]) jsonDump(metadata));
   }
 
   /// A property providing access to information about this node's underlying slices.
@@ -139,7 +141,7 @@ struct CeresNode
   ///     [(startTime, timeStep), ...]
   SliceData[] readSlices()
   {
-    if (!this.fsPath.exists)
+    if (!existsFile(this.fsPath))
       throw new NodeDeleted("node deleted: %s".format(this.fsPath));
 
     SliceData[] slice_info = [];

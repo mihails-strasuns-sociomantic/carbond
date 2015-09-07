@@ -7,8 +7,5 @@
 		"vibe-d": "==0.7.24",
 	},
 	"targetType": "executable",
-	"subConfigurations": {
-	    "vibe-d": "libasync"
-	},
 	"versions": ["VibeDefaultMain"],
 }
