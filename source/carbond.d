@@ -292,16 +292,16 @@ shared static this()
   {
     try
     {
-      /// Optional (or compatibility) daemon options.
+      /// Optional (compatibility) daemon options.
       bool nodaemon;
       bool syslog;
       string prefix = "carbond";
-      readOption("nodaemon", &nodaemon, "Run in the foreground (noop)");
-      readOption("syslog", &syslog, "Log to syslog, not to file");
-      readOption("prefix", &prefix, "Use the given prefix when syslogging");
+      readOption("n|nodaemon", &nodaemon, "Run in the foreground (noop)");
+      readOption("s|syslog", &syslog, "Log to syslog, not to file");
+      readOption("p|prefix", &prefix, "Use the given prefix when syslogging");
 
       /// Process all required options.
-      string instance = readRequiredOption!string("instance", "Name of the carbond instance");
+      string instance = readRequiredOption!string("i|instance", "Name of the carbond instance");
 
       /// Daemon configuration and environment.
       string graphite_root = environment.get("GRAPHITE_ROOT", dirName(absolutePath(".")));
@@ -309,26 +309,32 @@ shared static this()
       string conf_dir = environment.get("GRAPHITE_CONF_DIR", buildPath(graphite_root, "conf"));
       string config_path = buildPath(conf_dir, "carbon-daemons", instance);
 
-      /// Logging
-      if (syslog)
-        logger = cast(shared) new SyslogObserver(prefix);
-      else
+      if (instance.length != 0)
       {
-        string log_dir = buildPath(storage_dir, "log");
-        if (!exists(log_dir))
-          mkdirRecurse(log_dir);
-        logger = cast(shared) new FileLogger(buildPath(log_dir, "console.log"));
+        /// Logging
+        if (syslog)
+          logger = cast(shared) new SyslogObserver(prefix);
+        else
+        {
+          string log_dir = buildPath(storage_dir, "log");
+          if (!exists(log_dir))
+            mkdirRecurse(log_dir);
+          logger = cast(shared) new FileLogger(buildPath(log_dir, "console.log"));
+        }
+        registerLogger(logger);
+
+        /// Database
+        setupDatabase(config_path);
+
+        /// Storage Rules
+        setupStorageRules(config_path);
+
+        /// Server
+        setupServer(config_path);
+
+        /// Default log level (overriden by verbose options)
+        setLogLevel(LogLevel.warn);
       }
-      registerLogger(logger);
-
-      /// Database
-      setupDatabase(config_path);
-
-      /// Storage Rules
-      setupStorageRules(config_path);
-
-      /// Server
-      setupServer(config_path);
     }
     catch (Exception next)
       throw new Error(next.msg, next.next);
@@ -342,9 +348,6 @@ shared static this()
     logFatal(error.msg);
     exit(EXIT_FAILURE);
   }
-
-  /// Default log level (overriden by verbose options)
-  setLogLevel(LogLevel.warn);
 }
 
 // vim: set sw=2 sts=2 tw=120 et cin :
